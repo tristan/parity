@@ -71,6 +71,18 @@ impl Url {
 		}
 	}
 
+	/// Get a query parameter's value by name.
+	pub fn get_param(&self, name: &str) -> Option<&str> {
+		let query = match self.query {
+			Some(ref query) => query,
+			None => return None
+		};
+
+		query.split('&')
+			.find(|part| part.starts_with(name) && part[name.len()..].starts_with("="))
+			.map(|part| &part[name.len() + 1..])
+	}
+
 	/// Create a `Url` from a `rust-url` `Url`.
 	pub fn from_generic_url(raw_url: url_lib::Url) -> Result<Url, String> {
 		// Map empty usernames to None.
@@ -105,46 +117,55 @@ impl Url {
 
 #[cfg(test)]
 mod test {
-    use super::Url;
+	use super::Url;
 
-    #[test]
-    fn test_default_port() {
-        assert_eq!(Url::parse("http://example.com/wow").unwrap().port, 80u16);
-        assert_eq!(Url::parse("https://example.com/wow").unwrap().port, 443u16);
-    }
+	#[test]
+	fn test_default_port() {
+		assert_eq!(Url::parse("http://example.com/wow").unwrap().port, 80u16);
+		assert_eq!(Url::parse("https://example.com/wow").unwrap().port, 443u16);
+	}
 
-    #[test]
-    fn test_explicit_port() {
-        assert_eq!(Url::parse("http://localhost:3097").unwrap().port, 3097u16);
-    }
+	#[test]
+	fn test_explicit_port() {
+		assert_eq!(Url::parse("http://localhost:3097").unwrap().port, 3097u16);
+	}
 
-    #[test]
-    fn test_empty_username() {
-        assert!(Url::parse("http://@example.com").unwrap().username.is_none());
-        assert!(Url::parse("http://:password@example.com").unwrap().username.is_none());
-    }
+	#[test]
+	fn test_get_param() {
+		let url = Url::parse("http://example.com/wow?foo=100&bar=200&qux=300").unwrap();
 
-    #[test]
-    fn test_not_empty_username() {
-        let user = Url::parse("http://john:pass@example.com").unwrap().username;
-        assert_eq!(user.unwrap(), "john");
+		assert_eq!(url.get_param("foo"), Some("100"));
+		assert_eq!(url.get_param("bar"), Some("200"));
+		assert_eq!(url.get_param("qux"), Some("300"));
+	}
 
-        let user = Url::parse("http://john:@example.com").unwrap().username;
-        assert_eq!(user.unwrap(), "john");
-    }
+	#[test]
+	fn test_empty_username() {
+		assert!(Url::parse("http://@example.com").unwrap().username.is_none());
+		assert!(Url::parse("http://:password@example.com").unwrap().username.is_none());
+	}
 
-    #[test]
-    fn test_empty_password() {
-        assert!(Url::parse("http://michael@example.com").unwrap().password.is_none());
-        assert!(Url::parse("http://:@example.com").unwrap().password.is_none());
-    }
+	#[test]
+	fn test_not_empty_username() {
+		let user = Url::parse("http://john:pass@example.com").unwrap().username;
+		assert_eq!(user.unwrap(), "john");
 
-    #[test]
-    fn test_not_empty_password() {
-        let pass = Url::parse("http://michael:pass@example.com").unwrap().password;
-        assert_eq!(pass.unwrap(), "pass");
+		let user = Url::parse("http://john:@example.com").unwrap().username;
+		assert_eq!(user.unwrap(), "john");
+	}
 
-        let pass = Url::parse("http://:pass@example.com").unwrap().password;
-        assert_eq!(pass.unwrap(), "pass");
-    }
+	#[test]
+	fn test_empty_password() {
+		assert!(Url::parse("http://michael@example.com").unwrap().password.is_none());
+		assert!(Url::parse("http://:@example.com").unwrap().password.is_none());
+	}
+
+	#[test]
+	fn test_not_empty_password() {
+		let pass = Url::parse("http://michael:pass@example.com").unwrap().password;
+		assert_eq!(pass.unwrap(), "pass");
+
+		let pass = Url::parse("http://:pass@example.com").unwrap().password;
+		assert_eq!(pass.unwrap(), "pass");
+	}
 }

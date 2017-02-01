@@ -21,6 +21,8 @@ use hyper::header;
 use hyper::method::Method;
 use hyper::header::AccessControlAllowOrigin;
 
+use url::Url;
+use api::ipfs;
 use api::types::{App, ApiError};
 use api::response;
 use apps::fetcher::Fetcher;
@@ -81,9 +83,20 @@ impl RestApiRouter {
 		}
 	}
 
-	fn resolve_content(&self, hash: Option<&str>, path: EndpointPath, control: Control) -> Option<Box<Handler>> {
+	 // hash: Option<&str>, path: EndpointPath, control: Control)
+
+	fn resolve_content(&mut self, url: &Url) -> Option<Box<Handler>> {
+		let hash = url.path.get(2);
+
+		let mut path = self.path.take().expect("on_request called only once, and path is always defined in new; qed");
+		let control = self.control.take().expect("on_request called only once, and control is always defined in new; qed");
+
+		// at this point path.app_id contains 'api', adjust it to the hash properly, otherwise
+		// we will try and retrieve 'api' as the hash when doing the /api/content route
+		if let Some(hash) = hash { path.app_id = hash.clone() };
+
 		match hash {
-			Some(hash) if self.api.fetcher.contains(hash) => {
+			Some(ref hash) if self.api.fetcher.contains(hash) => {
 				Some(self.api.fetcher.to_async_handler(path, control))
 			},
 			_ => None
@@ -123,26 +136,22 @@ impl server::Handler<net::HttpStream> for RestApiRouter {
 			return Next::write();
 		}
 
-		let url = extract_url(&request);
-		if url.is_none() {
+		let url = match extract_url(&request) {
+			Some(url) => url,
+
 			// Just return 404 if we can't parse URL
-			return Next::write();
-		}
+			None => return Next::write()
+		};
 
-		let url = url.expect("Check for None early-exists above; qed");
-		let mut path = self.path.take().expect("on_request called only once, and path is always defined in new; qed");
-		let control = self.control.take().expect("on_request called only once, and control is always defined in new; qed");
+		println!("{:?}", &url);
 
-		let endpoint = url.path.get(1).map(|v| v.as_str());
-		let hash = url.path.get(2).map(|v| v.as_str());
-		// at this point path.app_id contains 'api', adjust it to the hash properly, otherwise
-		// we will try and retrieve 'api' as the hash when doing the /api/content route
-		if let Some(ref hash) = hash { path.app_id = hash.clone().to_owned() }
+		let endpoint = url.path.get(1);
 
-		let handler = endpoint.and_then(|v| match v {
+		let handler = endpoint.and_then(|v| match v.as_str() {
+			"v0" => ipfs::resolve(&url),
 			"apps" => Some(response::as_json(&self.api.list_apps())),
 			"ping" => Some(response::ping()),
-			"content" => self.resolve_content(hash, path, control),
+			"content" => self.resolve_content(&url),
 			_ => None
 		});
 

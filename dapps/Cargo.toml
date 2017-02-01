@@ -26,6 +26,7 @@ parity-dapps-glue = "1.4"
 mime = "0.2"
 mime_guess = "1.6.1"
 time = "0.1.35"
+cid = { git = "https://github.com/maciejhirsz/rust-cid.git" }
 serde_macros = { version = "0.8", optional = true }
 zip = { version = "0.1", default-features = false }
 ethcore-devtools = { path = "../devtools" }
