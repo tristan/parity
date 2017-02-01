@@ -14,23 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-//! RPC interface.
+try {
+  var JsonRpc = require('../.npmjs/jsonRpc/library.js');
 
-use std::collections::BTreeMap;
+  if (typeof JsonRpc !== 'object') {
+    throw new Error('JsonRpc');
+  }
 
-use jsonrpc_core::Error;
-
-build_rpc_trait! {
-	/// RPC Interface.
-	pub trait Rpc {
-		/// Returns supported modules for Geth 1.3.6
-        /// @ignore
-		#[rpc(name = "modules")]
-		fn modules(&self) -> Result<BTreeMap<String, String>, Error>;
-
-		/// Returns supported modules for Geth 1.4.0
-        /// @ignore
-		#[rpc(name = "rpc_modules")]
-		fn rpc_modules(&self) -> Result<BTreeMap<String, String>, Error>;
-	}
+  console.log(JsonRpc);
+  process.exit(0);
+} catch (e) {
+  console.error('An error occured:', e.toString().split('\n')[0]);
+  process.exit(1);
 }
