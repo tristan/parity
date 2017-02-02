@@ -1,12 +1,18 @@
+use cid::Cid;
 use url::Url;
 use endpoint::Handler;
+use try_from::TryFrom;
 
 pub fn resolve(url: &Url) -> Option<Box<Handler>> {
-    if &url.path[1..] == &["v0", "block", "get"] {
+    if &url.path[2..] != &["block", "get"] {
         return None;
     }
 
-    println!("{:?}", url.get_param("arg"));
+    let content_id = url.get_param("arg");
+
+    let parsed = Cid::try_from(content_id.unwrap());
+
+    println!("{:?} {:?}", content_id, parsed);
 
     None
 }
