@@ -594,13 +594,16 @@ impl Client {
 		// prune all ancient eras until we're below the memory target,
 		// but have at least the minimum number of states.
 		loop {
+			let journal_size = state_db.journal_db().journal_size();
 			let needs_pruning = state_db.journal_db().is_pruned() &&
-				state_db.journal_db().journal_size() >= self.config.history_mem;
+				journal_size >= self.config.history_mem;
 
 			if !needs_pruning { break }
 			match state_db.journal_db().earliest_era() {
 				Some(era) if era + self.history <= number => {
-					trace!(target: "client", "Pruning state for ancient era {}", era);
+					debug!(target: "client", "Pruning state for ancient era {}, mem: {} fast, {} slow",
+						era, journal_size, state_db.mem_used());
+
 					match chain.block_hash(era) {
 						Some(ancient_hash) => {
 							let mut batch = DBTransaction::new(&self.db.read());
