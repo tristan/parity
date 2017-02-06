@@ -1,4 +1,4 @@
-use cid::Cid;
+use cid::{Cid, Codec};
 use url::Url;
 use endpoint::Handler;
 use try_from::TryFrom;
@@ -8,9 +8,12 @@ pub fn resolve(url: &Url) -> Option<Box<Handler>> {
         return None;
     }
 
-    let content_id = url.get_param("arg");
+    let cid = Cid::try_from(url.get_param("arg").unwrap()).unwrap();
 
-    let parsed = Cid::try_from(content_id.unwrap());
+    assert_eq!(cid.hash[0], 0x1b); // 0x1b == Keccak-256
+    assert_eq!(cid.codec, Codec::EthereumBlock);
+
+    let block = &cid.hash[2..];
 
     println!("{:?} {:?}", content_id, parsed);
 
