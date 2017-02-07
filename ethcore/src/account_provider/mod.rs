@@ -29,6 +29,7 @@ use ethstore::{SimpleSecretStore, SecretStore, Error as SSError, EthStore, EthMu
 use ethstore::dir::MemoryDirectory;
 use ethstore::ethkey::{Address, Message, Public, Secret, Random, Generator};
 use ethjson::misc::AccountMeta;
+use hardware_wallet::{Error as HardwareError, HardwareWalletManager};
 pub use ethstore::ethkey::Signature;
 
 /// Type of unlock.
@@ -55,6 +56,10 @@ struct AccountData {
 pub enum SignError {
 	/// Account is not unlocked
 	NotUnlocked,
+	/// Account does not exist.
+	NotFound,
+	/// Low-level hardware device error.
+	Hardware(HardwareError),
 	/// Low-level error from store
 	SStore(SSError)
 }
@@ -63,8 +68,16 @@ impl fmt::Display for SignError {
 	fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
 		match *self {
 			SignError::NotUnlocked => write!(f, "Account is locked"),
+			SignError::NotFound => write!(f, "Account does not exist"),
+			SignError::Hardware(ref e) => write!(f, "{}", e),
 			SignError::SStore(ref e) => write!(f, "{}", e),
 		}
+	}
+}
+
+impl From<HardwareError> for SignError {
+	fn from(e: HardwareError) -> Self {
+		SignError::Hardware(e)
 	}
 }
 
@@ -107,6 +120,8 @@ pub struct AccountProvider {
 	sstore: Box<SecretStore>,
 	/// Accounts unlocked with rolling tokens
 	transient_sstore: EthMultiStore,
+	/// Accounts in hardware wallets.
+	hardware_store: Option<HardwareWalletManager>,
 }
 
 impl AccountProvider {
@@ -118,6 +133,7 @@ impl AccountProvider {
 			dapps_settings: RwLock::new(DappsSettingsStore::new(&sstore.local_path())),
 			sstore: sstore,
 			transient_sstore: transient_sstore(),
+			hardware_store: Some(HardwareWalletManager::new()),
 		}
 	}
 
@@ -129,6 +145,7 @@ impl AccountProvider {
 			dapps_settings: RwLock::new(DappsSettingsStore::transient()),
 			sstore: Box::new(EthStore::open(Box::new(MemoryDirectory::default())).expect("MemoryDirectory load always succeeds; qed")),
 			transient_sstore: transient_sstore(),
+			hardware_store: None,
 		}
 	}
 
@@ -173,6 +190,12 @@ impl AccountProvider {
 	/// Returns addresses of all accounts.
 	pub fn accounts(&self) -> Result<Vec<Address>, Error> {
 		let accounts = self.sstore.accounts()?;
+		Ok(accounts.into_iter().map(|a| a.address).collect())
+	}
+
+	/// Returns addresses of hardware accounts.
+	pub fn hardware_accounts(&self) -> Result<Vec<Address>, Error> {
+		let accounts = self.hardware_store.as_ref().map_or(Vec::new(), |h| h.list_wallets());
 		Ok(accounts.into_iter().map(|a| a.address).collect())
 	}
 
@@ -278,14 +301,36 @@ impl AccountProvider {
 		Ok(r)
 	}
 
+	/// Returns each hardware account along with name and meta.
+	pub fn hardware_accounts_info(&self) -> Result<HashMap<Address, AccountMeta>, Error> {
+		let r: HashMap<Address, AccountMeta> = self.hardware_accounts()?
+			.into_iter()
+			.map(|address| (address.clone(), self.account_meta(address).ok().unwrap_or_default()))
+			.collect();
+		Ok(r)
+	}
+
+	/// Returns each hardware account along with name and meta.
+	pub fn is_hardware_address(&self, address: Address) -> bool {
+		self.hardware_store.as_ref().and_then(|s| s.wallet_info(&address)).is_some()
+	}
+
 	/// Returns each account along with name and meta.
 	pub fn account_meta(&self, address: Address) -> Result<AccountMeta, Error> {
-		let account = self.sstore.account_ref(&address)?;
-		Ok(AccountMeta {
-			name: self.sstore.name(&account)?,
-			meta: self.sstore.meta(&account)?,
-			uuid: self.sstore.uuid(&account).ok().map(Into::into),	// allowed to not have a Uuid
-		})
+		if let Some(info) = self.hardware_store.as_ref().and_then(|s| s.wallet_info(&address)) {
+			Ok(AccountMeta {
+				name: info.name,
+				meta: info.manufacturer,
+				uuid: None,
+			})
+		} else {
+			let account = self.sstore.account_ref(&address)?;
+			Ok(AccountMeta {
+				name: self.sstore.name(&account)?,
+				meta: self.sstore.meta(&account)?,
+				uuid: self.sstore.uuid(&account).ok().map(Into::into),	// allowed to not have a Uuid
+			})
+		}
 	}
 
 	/// Returns each account along with name and meta.
@@ -492,6 +537,15 @@ impl AccountProvider {
 		self.sstore.change_account_vault(new_vault_ref, old_account_ref)
 			.map_err(Into::into)
 			.map(|_| ())
+	}
+
+	/// Sign transaction with hardware wallet.
+	pub fn sign_with_hardware(&self, address: Address, transaction: &[u8]) -> Result<Signature, SignError> {
+		match self.hardware_store.as_ref().map(|s| s.sign_transaction(&address, transaction)) {
+			None | Some(Err(HardwareError::KeyNotFound)) => Err(SignError::NotFound),
+			Some(Err(e)) => Err(From::from(e)),
+			Some(Ok(s)) => Ok(s),
+		}
 	}
 }
 
