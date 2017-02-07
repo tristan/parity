@@ -18,6 +18,7 @@
 
 extern crate parking_lot;
 extern crate hidapi;
+extern crate libusb;
 extern crate ethkey;
 extern crate ethcore_bigint;
 #[macro_use] extern crate log;
@@ -82,22 +83,42 @@ pub struct HardwareWalletManager {
 	ledger: Option<Arc<Mutex<ledger::Manager>>>,
 }
 
+pub struct EventHandler {
+	ledger: Arc<Mutex<ledger::Manager>>,
+}
+
+impl libusb::Hotplug for EventHandler {
+	fn device_arrived(&mut self, _device: libusb::Device) {
+		println!("Device Arrived");
+		self.ledger.lock().update_devices().unwrap_or_else(|e| debug!("Error enumerating Ledger devices: {}", e));
+	}
+
+	fn device_left(&mut self, _device: libusb::Device) {
+		println!("Device Left");
+		self.ledger.lock().update_devices().unwrap_or_else(|e| debug!("Error enumerating Ledger devices: {}", e));
+	}
+}
+
 impl HardwareWalletManager {
 	pub fn new() -> HardwareWalletManager {
+		let usb_context = Arc::new(libusb::Context::new().unwrap());
 		let ledger = ledger::Manager::new().map_err(|e| {
 			debug!("Error initializing Ledger device manager: {}", e);
 		}).ok().map(|l| Arc::new(Mutex::new(l)));
 
+		if let Some(l) = ledger.as_ref() {
+			usb_context.register_callback(None, None, None, Box::new(EventHandler { ledger: l.clone() })).unwrap();
+		}
 		let exiting = Arc::new(AtomicBool::new(false));
 		let thread_exiting = exiting.clone();
 		let thread = ledger.clone().and_then(|l| {
 			thread::Builder::new().name("hw_wallet".to_string()).spawn(move || {
+				l.lock().update_devices();
 				loop {
-					l.lock().update_devices().unwrap_or_else(|e| debug!("Error enumerating Ledger devices: {}", e));
+					usb_context.handle_events(Some(Duration::from_millis(500)));
 					if thread_exiting.load(atomic::Ordering::Acquire) {
 						break;
 					}
-					thread::park_timeout(Duration::from_millis(1000));
 				}
 			}).ok()
 		});
