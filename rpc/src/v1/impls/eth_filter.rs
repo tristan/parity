@@ -25,7 +25,7 @@ use ethcore::client::{BlockChainClient, BlockId};
 use util::Mutex;
 use v1::traits::EthFilter;
 use v1::types::{BlockNumber, Index, Filter, FilterChanges, Log, H256 as RpcH256, U256 as RpcU256};
-use v1::helpers::{PollFilter, PollManager, limit_logs};
+use v1::helpers::{PollFilter, PollManager, errors, limit_logs};
 use v1::impls::eth::pending_logs;
 
 /// Eth filter rpc implementation.
@@ -80,7 +80,7 @@ impl<C, M> EthFilter for EthFilterClient<C, M>
 		let client = take_weak!(self.client);
 		let mut polls = self.polls.lock();
 		match polls.poll_mut(&index.value()) {
-			None => Ok(FilterChanges::Empty),
+			None => Err(errors::no_filter_error()),
 			Some(filter) => match *filter {
 				PollFilter::Block(ref mut block_number) => {
 					// + 1, cause we want to return hashes including current block hash.
