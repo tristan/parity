@@ -33,6 +33,9 @@ const ETC_DERIVATION_PATH_BE: [u8; 21] =  [ 5,  0x80, 0, 0, 44,  0x80, 0, 0, 60,
 const APDU_TAG: u8 = 0x05;
 const APDU_CLA: u8 = 0xe0;
 
+#[cfg(windows)] const HID_PREFIX_ZERO: usize = 1;
+#[cfg(not(windows))] const HID_PREFIX_ZERO: usize = 0;
+
 mod commands {
 	pub const GET_APP_CONFIGURATION: u8 = 0x06;
 	pub const GET_ETH_PUBLIC_ADDRESS: u8 = 0x02;
@@ -102,13 +105,16 @@ impl Manager {
 		let devices = self.usb.devices();
 		self.devices.clear();
 		for device in devices {
+			println!("Checking device: {:?}", device);
 			if device.vendor_id != LEDGER_VID || !LEDGER_PIDS.contains(&device.product_id) {
 				continue;
 			}
-			trace!("device: {:?}", device);
 			match self.read_device_info(&device) {
-				Ok(info) => self.devices.push(info),
-				Err(e) => debug!("Error reading device info: {}", e),
+				Ok(info) => {
+					println!("Found device: {:?}", info);
+					self.devices.push(info)
+				},
+				Err(e) => println!("Error reading device info: {}", e),
 			};
 		}
 		Ok(())
@@ -216,41 +222,50 @@ impl Manager {
 	}
 
 	fn send_apdu(handle: &hidapi::HidDevice, command: u8, p1: u8, p2: u8, data: &[u8]) -> Result<Vec<u8>, Error> {
+		const HID_PACKET_SIZE: usize = 64 + HID_PREFIX_ZERO;
 		let mut offset = 0;
 		let mut chunk_index = 0;
-		loop {
-			let mut chunk: [u8; 64] = [0; 64];
-			&mut chunk[0..5].copy_from_slice(&[0x01, 0x01, APDU_TAG, (chunk_index >> 8) as u8, (chunk_index & 0xff) as u8 ]);
-			let mut chunk_size = 5;
-			if chunk_index == 0 {
-				let data_len = data.len() + 5;
-				&mut chunk[chunk_size .. chunk_size + 7 ].copy_from_slice(&[ (data_len >> 8) as u8, (data_len & 0xff) as u8, APDU_CLA, command, p1, p2, data.len() as u8 ]);
-				chunk_size += 7;
+			loop {
+				let mut hid_chunk: [u8; HID_PACKET_SIZE] = [0; HID_PACKET_SIZE];
+				let mut chunk_size = if chunk_index == 0 { 12 } else { 5 };
+				let size = min(64 - chunk_size, data.len() - offset);
+				{
+					let mut chunk = &mut hid_chunk[HID_PREFIX_ZERO..];
+					&mut chunk[0..5].copy_from_slice(&[0x01, 0x01, APDU_TAG, (chunk_index >> 8) as u8, (chunk_index & 0xff) as u8 ]);
+				
+					if chunk_index == 0 {
+						let data_len = data.len() + 5;
+						&mut chunk[5 .. 5 + 7].copy_from_slice(&[ (data_len >> 8) as u8, (data_len & 0xff) as u8, APDU_CLA, command, p1, p2, data.len() as u8 ]);
+					}
+				
+					&mut chunk[chunk_size .. chunk_size + size].copy_from_slice(&data[offset .. offset + size]);
+					offset += size;
+					chunk_size += size;
+					println!("writing");
+				}
+				println!("writing {:?}", &hid_chunk[..]);
+				let n = handle.write(&hid_chunk[0 .. chunk_size])?;
+				println!("written {}", n);
+				if n < chunk_size {
+					println!("{} vs {} ", n, chunk_size);	
+					return Err(Error::ProtocolError("Write data size mismatch"));
+				}	
+				if offset == data.len() {
+					break;
+				}
+				chunk_index += 1;
 			}
-			let size = min(64 - chunk_size, data.len() - offset);
-			&mut chunk[chunk_size .. chunk_size + size].copy_from_slice(&data[offset .. offset + size]);
-			offset += size;
-			chunk_size += size;
-
-			let n = handle.write(&chunk[0 .. chunk_size])?;
-			if n != chunk_size {
-				return Err(Error::ProtocolError("Write data size mismatch"));
-			}
-
-			if offset == data.len() {
-				break;
-			}
-			chunk_index += 1;
-		}
 
 		// read response
 		chunk_index = 0;
 		let mut message_size = 0;
 		let mut message = Vec::new();
 		loop {
-			let mut chunk: [u8; 64] = [0; 64];
+			let mut chunk: [u8; HID_PACKET_SIZE] = [0; HID_PACKET_SIZE];
+			println!("reading");
 			let chunk_size = handle.read(&mut chunk)?;
-			if chunk_size < 5 || chunk[0] != 0x01 || chunk[1] != 0x1 || chunk[2] != APDU_TAG {
+			println!("read {:?}", &chunk[..]);
+			if chunk_size < 5 || chunk[1] != 0x01 || chunk[1] != 0x01 || chunk[2] != APDU_TAG {
 				return Err(Error::ProtocolError("Unexpected chunk header"));
 			}
 			let seq = (chunk[3] as usize) << 8 | (chunk[4] as usize);
@@ -298,7 +313,7 @@ impl Manager {
 }
 
 #[test]
-fn somke_test() {
+fn smoke() {
 	use rustc_serialize::hex::FromHex;
 	let mut manager = Manager::new().unwrap();
 	manager.update_devices().unwrap();

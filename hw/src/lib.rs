@@ -90,6 +90,7 @@ pub struct EventHandler {
 impl libusb::Hotplug for EventHandler {
 	fn device_arrived(&mut self, _device: libusb::Device) {
 		println!("Device Arrived");
+		thread::sleep_ms(500);
 		self.ledger.lock().update_devices().unwrap_or_else(|e| debug!("Error enumerating Ledger devices: {}", e));
 	}
 

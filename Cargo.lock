@@ -894,11 +894,10 @@ dependencies = [
 [[package]]
 name = "hidapi"
 version = "0.3.1"
-source = "git+https://github.com/ethcore/hidapi-rs#c4b24af21e026a1952e7741607029f0f5bde36e7"
+source = "git+https://github.com/ethcore/hidapi-rs#32fd0ed0cc2f49044973415bd830e6fc0a45bc54"
 dependencies = [
  "gcc 0.3.35 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.16 (registry+https://github.com/rust-lang/crates.io-index)",
- "pkg-config 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1141,7 +1140,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "libusb"
 version = "0.3.0"
-source = "git+https://github.com/ethcore/libusb-rs#90336ed053956d2f9a9be4d86ca5ac494848b974"
+source = "git+https://github.com/ethcore/libusb-rs#32bacf61abd981d5cbd4a8fecca5a2dc0b762a96"
 dependencies = [
  "bit-set 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.16 (registry+https://github.com/rust-lang/crates.io-index)",
