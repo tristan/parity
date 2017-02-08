@@ -125,11 +125,12 @@ impl Manager {
 	}
 
 	fn read_device_info(&self, dev_info: &hidapi::HidDeviceInfo) -> Result<Device, Error> {
-		let mut handle = self.usb.open_path(&dev_info.path)?;
+		let mut handle = self.open_path(&dev_info.path)?;
 		let address = Self::read_wallet_address(&mut handle, self.key_path)?;
 		let manufacturer = dev_info.manufacturer_string.clone().unwrap_or("Unknown".to_owned());
 		let name = dev_info.product_string.clone().unwrap_or("Unknown".to_owned());
 		let serial = dev_info.serial_number.clone().unwrap_or("Unknown".to_owned());
+		::std::mem::drop(handle);
 		Ok(Device {
 			path: dev_info.path.clone(),
 			info: WalletInfo {
@@ -186,7 +187,7 @@ impl Manager {
 		let device = self.devices.iter().find(|d| &d.info.address == address)
 			.ok_or(Error::KeyNotFound)?;
 
-		let handle = self.usb.open_path(&device.path)?;
+		let handle = self.open_path(&device.path)?;
 
 		let eth_path = &ETH_DERIVATION_PATH_BE[..];
 		let etc_path = &ETC_DERIVATION_PATH_BE[..];
@@ -212,6 +213,7 @@ impl Manager {
 				break;
 			}
 		}
+
 		if result.len() != 65 {
 			return Err(Error::ProtocolError("Signature packet size mismatch"));
 		}
@@ -219,6 +221,19 @@ impl Manager {
 		let r = H256::from_slice(&result[1 .. 1 + 32]);
 		let s = H256::from_slice(&result[1 + 32 .. 1 + 64]);
 		Ok(Signature::from_rsv(&r, &s, v))
+	}
+
+	fn open_path(&self, path: &str) -> Result<hidapi::HidDevice, Error> {
+		let mut err: Option<Error> = None;
+		for _ in 0 .. 10 {
+			println!("trying");
+			match self.usb.open_path(&path) {
+				Ok(handle) => return Ok(handle),
+				Err(e) => err = Some(From::from(e)),
+			}
+			::std::thread::sleep_ms(200);
+		}
+		Err(err.unwrap())
 	}
 
 	fn send_apdu(handle: &hidapi::HidDevice, command: u8, p1: u8, p2: u8, data: &[u8]) -> Result<Vec<u8>, Error> {
