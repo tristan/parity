@@ -43,6 +43,7 @@ ethcore-signer = { path = "signer" }
 ethcore-ipc = { path = "ipc/rpc" }
 ethcore-ipc-nano = { path = "ipc/nano" }
 ethcore-ipc-hypervisor = { path = "ipc/hypervisor" }
+ethcore-ipfs = { path = "ipfs" }
 ethcore-light = { path = "ethcore/light" }
 ethcore-logger = { path = "logger" }
 ethcore-stratum = { path = "stratum" }

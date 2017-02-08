@@ -47,6 +47,7 @@ use dir::Directories;
 use cache::CacheConfig;
 use user_defaults::UserDefaults;
 use dapps;
+use ipfs;
 use signer;
 use modules;
 use rpc_apis;
@@ -340,6 +341,9 @@ pub fn execute(cmd: RunCmd, can_restart: bool, logger: Arc<RotatingLogger>) -> R
 	if network_enabled {
 		chain_notify.start();
 	}
+
+	// IPFS service
+	ipfs::start_server(client.clone());
 
 	// spin up event loop
 	let event_loop = EventLoop::spawn();

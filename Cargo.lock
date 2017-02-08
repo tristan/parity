@@ -18,6 +18,7 @@ dependencies = [
  "ethcore-ipc-hypervisor 1.2.0",
  "ethcore-ipc-nano 1.6.0",
  "ethcore-ipc-tests 0.1.0",
+ "ethcore-ipfs 1.6.0",
  "ethcore-light 1.6.0",
  "ethcore-logger 1.6.0",
  "ethcore-rpc 1.6.0",
@@ -434,6 +435,7 @@ dependencies = [
  "cid 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "clippy 0.0.103 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ethcore 1.6.0",
  "ethcore-devtools 1.6.0",
  "ethcore-rpc 1.6.0",
  "ethcore-util 1.6.0",
@@ -536,6 +538,16 @@ dependencies = [
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "nanomsg 0.5.1 (git+https://github.com/ethcore/nanomsg.rs.git)",
  "semver 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "ethcore-ipfs"
+version = "1.6.0"
+dependencies = [
+ "cid 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ethcore 1.6.0",
+ "hyper 0.10.0-a.0 (git+https://github.com/ethcore/hyper)",
+ "try_from 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

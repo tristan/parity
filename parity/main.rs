@@ -39,6 +39,7 @@ extern crate semver;
 extern crate ethcore_io as io;
 extern crate ethcore_ipc as ipc;
 extern crate ethcore_ipc_nano as nanoipc;
+extern crate ethcore_ipfs as ipfs;
 extern crate serde;
 extern crate serde_json;
 extern crate jsonrpc_core;
@@ -211,7 +212,7 @@ fn latest_exe_path() -> Option<PathBuf> {
 fn global_cleanup() {
 	extern "system" { pub fn WSACleanup() -> i32; }
 	// We need to cleanup all sockets before spawning another Parity process. This makes shure everything is cleaned up.
-	// The loop is required because of internal refernce counter for winsock dll. We don't know how many crates we use do 
+	// The loop is required because of internal refernce counter for winsock dll. We don't know how many crates we use do
 	// initialize it. There's at least 2 now.
 	for _ in 0.. 10 {
 		unsafe { WSACleanup(); }
